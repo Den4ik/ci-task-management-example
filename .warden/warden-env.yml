@@ -1,0 +1,51 @@
+version: "3.5"
+services:
+  nginx:
+    hostname: "${WARDEN_ENV_NAME}-nginx"
+    image: docker.io/magenius/nginx:${NGINX_VERSION:-1.16}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-nginx.tls=true
+      - traefik.http.routers.${WARDEN_ENV_NAME}-nginx.priority=2
+      - traefik.http.routers.${WARDEN_ENV_NAME}-nginx.rule=
+        HostRegexp(`{subdomain:.+}.${TRAEFIK_DOMAIN}`) || Host(`${TRAEFIK_DOMAIN}`)
+      - traefik.http.services.${WARDEN_ENV_NAME}-nginx.loadbalancer.server.port=80
+    volumes:
+      - appdata:/var/www/html
+    environment:
+      - XDEBUG_CONNECT_BACK_HOST=${XDEBUG_CONNECT_BACK_HOST:-host.docker.internal}
+
+  php-fpm:
+    hostname: "${WARDEN_ENV_NAME}-php-fpm"
+    image: docker.io/magenius/php-fpm:${PHP_VERSION:-7.4}${WARDEN_SVC_PHP_VARIANT:-}
+    environment:
+      - TRAEFIK_DOMAIN
+      - TRAEFIK_SUBDOMAIN
+      - COMPOSER_MEMORY_LIMIT=-1
+    volumes:
+      - appdata:/var/www/html
+    extra_hosts:
+      - ${TRAEFIK_DOMAIN}:${TRAEFIK_ADDRESS:-0.0.0.0}
+      - ${TRAEFIK_SUBDOMAIN:-app}.${TRAEFIK_DOMAIN}:${TRAEFIK_ADDRESS:-0.0.0.0}
+
+  php-debug:
+    hostname: "${WARDEN_ENV_NAME}-php-debug"
+    image: docker.io/magenius/php-fpm:${PHP_VERSION:-7.4}${WARDEN_SVC_PHP_VARIANT:-}-debug
+    environment:
+      - TRAEFIK_DOMAIN
+      - TRAEFIK_SUBDOMAIN
+      - SSH_AUTH_SOCK=/tmp/ssh-auth.sock
+      - NODE_VERSION=${NODE_VERSION:-10}
+      - COMPOSER_MEMORY_LIMIT=-1
+      - PHP_IDE_CONFIG=serverName=${WARDEN_ENV_NAME}-docker
+    volumes:
+      - appdata:/var/www/html
+    extra_hosts:
+      - ${TRAEFIK_DOMAIN}:${TRAEFIK_ADDRESS:-0.0.0.0}
+      - ${TRAEFIK_SUBDOMAIN:-app}.${TRAEFIK_DOMAIN}:${TRAEFIK_ADDRESS:-0.0.0.0}
+    depends_on:
+      - php-fpm
+
+
+volumes:
+  appdata: {}
